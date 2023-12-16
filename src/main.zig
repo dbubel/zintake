@@ -1,24 +1,68 @@
 const std = @import("std");
+const cores = @import("cores.zig");
+// const cores = @cImport({
+//     @cInclude("cores.h");
+// });
 
 pub fn main() !void {
-    // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
+    const address = try std.net.Address.parseIp("127.0.0.1", 8080);
+    var gpa_server = std.heap.GeneralPurposeAllocator(.{}){};
+    const gpa = gpa_server.allocator();
+    var server = std.http.Server.init(gpa, .{ .reuse_address = true });
+    defer server.deinit();
 
-    // stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
-    const stdout_file = std.io.getStdOut().writer();
-    var bw = std.io.bufferedWriter(stdout_file);
-    const stdout = bw.writer();
+    try server.listen(address);
+    std.log.info("server starting on {any} cores: {d}", .{ address, cores.num_cores() });
 
-    try stdout.print("Run `zig build test` to run the tests.\n", .{});
+    var thread_pool: std.Thread.Pool = undefined;
+    try thread_pool.init(.{ .allocator = gpa, .n_jobs = @intCast(cores.num_cores()) });
+    defer thread_pool.deinit();
 
-    try bw.flush(); // don't forget to flush!
+    while (true) {
+        var resp: std.http.Server.Response = try std.http.Server.accept(&server, .{ .allocator = gpa });
+        thread_pool.spawn(handleConnection, .{&resp}) catch |err| {
+            std.log.err("error spawning thread {any}", .{err});
+        };
+    }
 }
+const Server = struct {
+    const This = @This();
+    const http_allocator: std.mem.Allocator = undefined;
+    const thread_allocator: std.mem.Allocator = undefined;
+    const address: std.net.Address = undefined;
 
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
+    pub fn init(ha: *std.mem.Allocator, ta: *std.mem.Allocator, a: std.net.Address) This {
+        return .{
+            .http_allocator = ha,
+            .thread_allocator = ta,
+            .address = a,
+        };
+    }
+};
+
+const handler = fn () void;
+
+fn handleConnection(resp: *std.http.Server.Response) void {
+    defer resp.deinit();
+    _ = resp.wait() catch |err| {
+        std.log.err("error wait {any}", .{err});
+        return;
+    };
+
+    _ = resp.send() catch |err| {
+        std.log.err("error send {any}", .{err});
+        return;
+    };
+
+    const a = "hello from server";
+    resp.transfer_encoding = .{ .content_length = a.len };
+    _ = resp.writeAll(a) catch |err| {
+        std.log.err("error writeAll {any}", .{err});
+        return;
+    };
+
+    _ = resp.finish() catch |err| {
+        std.log.err("error finish {any}", .{err});
+        return;
+    };
 }
