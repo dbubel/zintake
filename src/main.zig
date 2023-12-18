@@ -33,8 +33,9 @@ const Server = struct {
         try thread_pool.init(.{ .allocator = self.allocator.*, .n_jobs = 12 });
         try server.listen(self.address);
 
+        std.debug.print("waiting on connections...\n", .{});
         while (true) {
-            var resp: std.http.Server.Response = try std.http.Server.accept(&server, .{ .allocator = self.allocator.* });
+            var resp: std.http.Server.Response = try std.http.Server.accept(&server, .{ .allocator = self.allocator.*, .header_strategy = .{ .dynamic = 1024 } });
             thread_pool.spawn(handleConnection, .{&resp}) catch |err| {
                 std.log.err("error spawning thread {any}", .{err});
             };
@@ -45,7 +46,6 @@ const Server = struct {
 const handler = fn () void;
 
 fn handleConnection(resp: *std.http.Server.Response) void {
-    std.debug.print("in handle\n", .{});
     defer resp.deinit();
     _ = resp.wait() catch |err| {
         std.log.err("error wait {any}", .{err});
