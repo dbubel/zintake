@@ -5,34 +5,36 @@ const std = @import("std");
 // });
 
 pub fn main() !void {
+    var alloc = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = alloc.allocator();
+
     const address = try std.net.Address.parseIp("127.0.0.1", 4000);
-    var s = Server.init(address);
+
+    var s = Server.init(address, &gpa);
     try s.run();
 }
 
 const Server = struct {
     const This = @This();
     address: std.net.Address = undefined,
+    allocator: *std.mem.Allocator = undefined,
 
-    pub fn init(a: std.net.Address) This {
-        return .{ .address = a };
+    pub fn init(addr: std.net.Address, alloc: *std.mem.Allocator) This {
+        return .{ .address = addr, .allocator = alloc };
     }
 
     pub fn run(self: *This) !void {
-        var alloc = std.heap.GeneralPurposeAllocator(.{}){};
-        const gpa = alloc.allocator();
-
-        var server = std.http.Server.init(gpa, .{ .reuse_address = true });
+        var server = std.http.Server.init(self.allocator.*, .{ .reuse_address = true });
         defer server.deinit();
 
         var thread_pool: std.Thread.Pool = undefined;
         defer thread_pool.deinit();
 
-        try thread_pool.init(.{ .allocator = gpa, .n_jobs = 12 });
+        try thread_pool.init(.{ .allocator = self.allocator.*, .n_jobs = 12 });
         try server.listen(self.address);
 
         while (true) {
-            var resp: std.http.Server.Response = try std.http.Server.accept(&server, .{ .allocator = gpa });
+            var resp: std.http.Server.Response = try std.http.Server.accept(&server, .{ .allocator = self.allocator.* });
             thread_pool.spawn(handleConnection, .{&resp}) catch |err| {
                 std.log.err("error spawning thread {any}", .{err});
             };
