@@ -1,5 +1,5 @@
 const std = @import("std");
-const cores = @import("cores.zig");
+// const cores = @import("cores.zig");
 // const cores = @cImport({
 //     @cInclude("cores.h");
 // });
@@ -16,14 +16,16 @@ pub fn main() !void {
     defer server.deinit();
 
     try server.listen(address);
-    std.log.info("server starting on {any} cores: {d}", .{ address, cores.num_cores() });
+    // std.log.info("server starting on {any} cores: {d}", .{ address, cores.num_cores() });
 
     var thread_pool: std.Thread.Pool = undefined;
-    try thread_pool.init(.{ .allocator = gpa, .n_jobs = @intCast(cores.num_cores()) });
+    try thread_pool.init(.{ .allocator = gpa, .n_jobs = 12 });
     defer thread_pool.deinit();
 
     while (true) {
+        std.debug.print("wait\n", .{});
         var resp: std.http.Server.Response = try std.http.Server.accept(&server, .{ .allocator = gpa2 });
+        std.debug.print("conn rec\n", .{});
         thread_pool.spawn(handleConnection, .{&resp}) catch |err| {
             std.log.err("error spawning thread {any}", .{err});
         };
@@ -51,7 +53,7 @@ const Server = struct {
 
     pub fn run(self: *This) !void {
         var thread_pool: std.Thread.Pool = undefined;
-        try thread_pool.init(.{ .allocator = self.http_allocator.*, .n_jobs = @intCast(cores.num_cores()) });
+        try thread_pool.init(.{ .allocator = self.http_allocator.*, .n_jobs = 12 });
         defer thread_pool.deinit();
 
         var server = std.http.Server.init(self.http_allocator.*, .{ .reuse_address = true });
@@ -76,29 +78,27 @@ const Server = struct {
 const handler = fn () void;
 
 fn handleConnection(resp: *std.http.Server.Response) void {
-    std.debug.print("omg wtf\n", .{});
-    _ = resp;
-    // std.debug.print("in handle\n", .{});
-    // defer resp.deinit();
-    // _ = resp.wait() catch |err| {
-    //     std.log.err("error wait {any}", .{err});
-    //     return;
-    // };
-    //
-    // _ = resp.send() catch |err| {
-    //     std.log.err("error send {any}", .{err});
-    //     return;
-    // };
-    //
-    // const a = "hello from server";
-    // resp.transfer_encoding = .{ .content_length = a.len };
-    // _ = resp.writeAll(a) catch |err| {
-    //     std.log.err("error writeAll {any}", .{err});
-    //     return;
-    // };
-    //
-    // _ = resp.finish() catch |err| {
-    //     std.log.err("error finish {any}", .{err});
-    //     return;
-    // };
+    std.debug.print("in handle\n", .{});
+    defer resp.deinit();
+    _ = resp.wait() catch |err| {
+        std.log.err("error wait {any}", .{err});
+        return;
+    };
+
+    _ = resp.send() catch |err| {
+        std.log.err("error send {any}", .{err});
+        return;
+    };
+
+    const a = "hello from server";
+    resp.transfer_encoding = .{ .content_length = a.len };
+    _ = resp.writeAll(a) catch |err| {
+        std.log.err("error writeAll {any}", .{err});
+        return;
+    };
+
+    _ = resp.finish() catch |err| {
+        std.log.err("error finish {any}", .{err});
+        return;
+    };
 }
