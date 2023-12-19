@@ -7,7 +7,9 @@ const std = @import("std");
 pub fn main() !void {
     var alloc = std.heap.GeneralPurposeAllocator(.{}){};
     const gpa = alloc.allocator();
-
+    // var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    // defer arena.deinit();
+    // const allocator = arena.allocator();
     const address = try std.net.Address.parseIp("127.0.0.1", 4000);
 
     var s = Server.init(address, gpa);
@@ -30,14 +32,17 @@ const Server = struct {
         var thread_pool: std.Thread.Pool = undefined;
         defer thread_pool.deinit();
 
-        try thread_pool.init(.{ .allocator = self.allocator, .n_jobs = 12 });
+        try thread_pool.init(.{ .allocator = self.allocator, .n_jobs = 6 });
         try server.listen(self.address);
-        // var resp_pool = std.heap.MemoryPool(std.http.Server.Response).init(self.allocator);
+        var resp_pool = std.heap.MemoryPool(std.http.Server.Response).init(self.allocator);
 
         std.debug.print("waiting on connections...\n", .{});
         while (true) {
-            const resp: std.http.Server.Response = try std.http.Server.accept(&server, .{ .allocator = self.allocator });
-            thread_pool.spawn(handleConnection, .{resp}) catch |err| {
+            const r = try resp_pool.create();
+            // a.* = try std.http.Server.accept(&server, .{ .allocator = self.allocator });
+            // const r = try self.allocator.create(std.http.Server.Response);
+            r.* = try std.http.Server.accept(&server, .{ .allocator = self.allocator });
+            thread_pool.spawn(handleConnection, .{r.*}) catch |err| {
                 std.log.err("error spawning thread {any}", .{err});
             };
         }
