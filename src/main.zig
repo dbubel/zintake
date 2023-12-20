@@ -1,20 +1,10 @@
 const std = @import("std");
-// const cores = @import("cores.zig");
-// const cores = @cImport({
-//     @cInclude("cores.h");
-// });
 
 pub fn main() !void {
-    var alloc = std.heap.GeneralPurposeAllocator(.{}){};
-    const gpa = alloc.allocator();
-    // const gpa = std.heap.c_allocator;
-    // var arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
-    // defer arena.deinit();
-    // const gpa = arena.allocator();
+    const c_alloc = std.heap.c_allocator;
     const address = try std.net.Address.parseIp("0.0.0.0", 4000);
-
-    var s = Server.init(address, gpa);
-    try s.run();
+    var s = Server.init(address, c_alloc);
+    try s.run(); // this blocks
 }
 
 const Server = struct {
@@ -24,6 +14,32 @@ const Server = struct {
 
     pub fn init(addr: std.net.Address, alloc: std.mem.Allocator) This {
         return .{ .address = addr, .allocator = alloc };
+    }
+
+    pub fn handle(_: *This, resp: std.http.Server.Response) void {
+        var respCopy = resp; // this is very dumb i have to do this
+        defer respCopy.deinit();
+        _ = respCopy.wait() catch |err| {
+            std.log.err("error wait {any}", .{err});
+            return;
+        };
+
+        _ = respCopy.send() catch |err| {
+            std.log.err("error send {any}", .{err});
+            return;
+        };
+
+        const a = "hello from server";
+        respCopy.transfer_encoding = .{ .content_length = a.len };
+        _ = respCopy.writeAll(a) catch |err| {
+            std.log.err("error writeAll {any}", .{err});
+            return;
+        };
+
+        _ = respCopy.finish() catch |err| {
+            std.log.err("error finish {any}", .{err});
+            return;
+        };
     }
 
     pub fn run(self: *This) !void {
@@ -39,42 +55,12 @@ const Server = struct {
 
         std.debug.print("\nwaiting on connections...\n", .{});
         while (true) {
-            // const r = try resp_pool.create();
-            // a.* = try std.http.Server.accept(&server, .{ .allocator = self.allocator });
             const r = try self.allocator.create(std.http.Server.Response);
             r.* = try std.http.Server.accept(&server, .{ .allocator = self.allocator });
-            // handleConnection(r.*);
-            thread_pool.spawn(handleConnection, .{r.*}) catch |err| {
+            thread_pool.spawn(handle, .{ self, r.* }) catch |err| {
                 std.log.err("error spawning thread {any}", .{err});
             };
+            self.allocator.destroy(r);
         }
     }
 };
-
-const handler = fn () void;
-
-fn handleConnection(resp: std.http.Server.Response) void {
-    var respCopy = resp; // this is very dumb i have to do this
-    defer respCopy.deinit();
-    _ = respCopy.wait() catch |err| {
-        std.log.err("error wait {any}", .{err});
-        return;
-    };
-
-    _ = respCopy.send() catch |err| {
-        std.log.err("error send {any}", .{err});
-        return;
-    };
-
-    const a = "hello from server";
-    respCopy.transfer_encoding = .{ .content_length = a.len };
-    _ = respCopy.writeAll(a) catch |err| {
-        std.log.err("error writeAll {any}", .{err});
-        return;
-    };
-
-    _ = respCopy.finish() catch |err| {
-        std.log.err("error finish {any}", .{err});
-        return;
-    };
-}
