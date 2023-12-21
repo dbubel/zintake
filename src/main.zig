@@ -61,7 +61,8 @@ const Server = struct {
     pub fn run2(self: *This) !void {
         var server = std.http.Server.init(self.allocator, .{ .kernel_backlog = 1024, .reuse_port = true, .reuse_address = true });
         defer server.deinit();
-        const num_threads = 1; //try std.Thread.getCpuCount();
+        try server.listen(self.address);
+        const num_threads = 12; //try std.Thread.getCpuCount();
         const threads = try self.allocator.alloc(std.Thread, num_threads);
 
         for (threads) |*t| {
@@ -69,44 +70,55 @@ const Server = struct {
         }
 
         for (threads) |t| {
+            std.debug.print("joined\n", .{});
             t.join();
         }
     }
+
     pub fn handler2(server: *std.http.Server) !void {
         // _ = server;
         var gpa = std.heap.GeneralPurposeAllocator(.{}){};
         defer _ = gpa.deinit();
 
         const worker_allocator = gpa.allocator();
-        //
         var arena = std.heap.ArenaAllocator.init(worker_allocator);
         defer arena.deinit();
 
         const allocator = arena.allocator();
-        //
-        // _ = allocator;
+
         while (true) {
             defer _ = arena.reset(.{ .retain_with_limit = 1024 * 1024 });
             var header_buf: [8192]u8 = undefined;
-            const res = try server.accept(.{ .allocator = allocator, .header_strategy = .{ .static = &header_buf } });
-            _ = res;
-            // defer res.deinit();
+            // std.debug.print("wait on accept\n", .{});
+
+            var res = try server.accept(.{ .allocator = allocator, .header_strategy = .{ .static = &header_buf } });
+            defer res.deinit();
             //
-            // _ = res.wait() catch |err| {
-            //     std.log.err("error in wait {any}", .{err});
-            //     return;
-            // };
-            //
-            // _ = res.send() catch |err| {
-            //     std.log.err("error send {any}", .{err});
-            //     return;
-            // };
-            //
-            // _ = res.finish() catch |err| {
-            //     std.log.err("error finish {any}", .{err});
-            //     return;
-            // };
-            // _ = res.reset();
+            _ = res.wait() catch |err| {
+                std.log.err("error in wait {any}", .{err});
+                return;
+            };
+            _ = res.send() catch |err| {
+                std.log.err("error send {any}", .{err});
+                return;
+            };
+
+            const hh = res.headers.getFirstValue("content-type");
+            _ = hh;
+            // std.debug.print("headers {any}\n", .{hh});
+
+            const a = "hello from server";
+            res.transfer_encoding = .{ .content_length = a.len };
+            _ = res.writeAll(a) catch |err| {
+                std.log.err("error writeAll {any}", .{err});
+                return;
+            };
+
+            _ = res.finish() catch |err| {
+                std.log.err("error finish {any}", .{err});
+                return;
+            };
+            _ = res.reset();
         }
     }
     pub fn run(self: *This) !void {
