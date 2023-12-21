@@ -24,18 +24,22 @@ const Server = struct {
             return;
         };
 
+        _ = respCopy.send() catch |err| {
+            std.log.err("error send {any}", .{err});
+            return;
+        };
+
+        const cl = respCopy.headers.getFirstValue("content-type");
+        std.debug.print("content len {any}\n", .{cl});
+
         var buf: [1024 * 1024]u8 = undefined;
         const n: usize = respCopy.readAll(&buf) catch |err| {
             std.log.err("error reading req body {any}", .{err});
             return;
         };
-        std.debug.print("buf {any}\n", .{buf[0..n]});
-        _ = respCopy.send() catch |err| {
-            std.log.err("error send {any}", .{err});
-            return;
-        };
-        const cl = resp.headers.getFirstValue("Content-Length");
-        std.debug.print("content len {any}\n", .{cl});
+        _ = n;
+
+        // std.debug.print("buf {any}\n", .{buf[0..n]});
 
         const a = "hello from server";
         respCopy.transfer_encoding = .{ .content_length = a.len };
@@ -63,12 +67,9 @@ const Server = struct {
 
         std.debug.print("\nwaiting on connections...\n", .{});
         while (true) {
-            var header_buf: [1024 * 1024]u8 = undefined;
             const r = try self.allocator.create(std.http.Server.Response);
-            r.* = try std.http.Server.accept(&server, .{ .allocator = self.allocator, .header_strategy = .{ .static = &header_buf } });
+            r.* = try std.http.Server.accept(&server, .{ .allocator = self.allocator });
 
-            std.debug.print("CL: {any}\n", .{r.headers.getFirstValue("Content-Length")});
-r.headers
             thread_pool.spawn(handle, .{ self, r.* }) catch |err| {
                 std.log.err("error spawning thread {any}", .{err});
             };
