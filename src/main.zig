@@ -1,10 +1,14 @@
 const std = @import("std");
 
 pub fn main() !void {
+    var server_gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const server_allocator = server_gpa.allocator();
+
     const c_alloc = std.heap.c_allocator;
+    _ = c_alloc;
     const address = try std.net.Address.parseIp("0.0.0.0", 4000);
-    var s = Server.init(address, c_alloc);
-    try s.run(); // this blocks
+    var s = Server.init(address, server_allocator);
+    try s.run2(); // this blocks
 }
 
 const Server = struct {
@@ -54,6 +58,57 @@ const Server = struct {
         };
     }
 
+    pub fn run2(self: *This) !void {
+        var server = std.http.Server.init(self.allocator, .{ .kernel_backlog = 1024, .reuse_port = true, .reuse_address = true });
+        defer server.deinit();
+        const num_threads = 1; //try std.Thread.getCpuCount();
+        const threads = try self.allocator.alloc(std.Thread, num_threads);
+
+        for (threads) |*t| {
+            t.* = try std.Thread.spawn(.{}, handler2, .{&server});
+        }
+
+        for (threads) |t| {
+            t.join();
+        }
+    }
+    pub fn handler2(server: *std.http.Server) !void {
+        // _ = server;
+        var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+        defer _ = gpa.deinit();
+
+        const worker_allocator = gpa.allocator();
+        //
+        var arena = std.heap.ArenaAllocator.init(worker_allocator);
+        defer arena.deinit();
+
+        const allocator = arena.allocator();
+        //
+        // _ = allocator;
+        while (true) {
+            defer _ = arena.reset(.{ .retain_with_limit = 1024 * 1024 });
+            var header_buf: [8192]u8 = undefined;
+            const res = try server.accept(.{ .allocator = allocator, .header_strategy = .{ .static = &header_buf } });
+            _ = res;
+            // defer res.deinit();
+            //
+            // _ = res.wait() catch |err| {
+            //     std.log.err("error in wait {any}", .{err});
+            //     return;
+            // };
+            //
+            // _ = res.send() catch |err| {
+            //     std.log.err("error send {any}", .{err});
+            //     return;
+            // };
+            //
+            // _ = res.finish() catch |err| {
+            //     std.log.err("error finish {any}", .{err});
+            //     return;
+            // };
+            // _ = res.reset();
+        }
+    }
     pub fn run(self: *This) !void {
         var server = std.http.Server.init(self.allocator, .{ .kernel_backlog = 1024, .reuse_port = true, .reuse_address = true });
         defer server.deinit();
