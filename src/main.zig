@@ -3,12 +3,12 @@ const std = @import("std");
 pub fn main() !void {
     var server_gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const server_allocator = server_gpa.allocator();
-
+    // _ = server_allocator;
     const c_alloc = std.heap.c_allocator;
     _ = c_alloc;
     const address = try std.net.Address.parseIp("0.0.0.0", 4000);
     var s = Server.init(address, server_allocator);
-    try s.run2(); // this blocks
+    try s.run(); // this blocks
 }
 
 const Server = struct {
@@ -20,45 +20,7 @@ const Server = struct {
         return .{ .address = addr, .allocator = alloc };
     }
 
-    pub fn handle(_: *This, resp: std.http.Server.Response) void {
-        var respCopy = resp; // this is very dumb i have to do this
-        defer respCopy.deinit();
-        _ = respCopy.wait() catch |err| {
-            std.log.err("error wait {any}", .{err});
-            return;
-        };
-
-        _ = respCopy.send() catch |err| {
-            std.log.err("error send {any}", .{err});
-            return;
-        };
-
-        const cl = respCopy.headers.getFirstValue("content-type");
-        std.debug.print("content len {any}\n", .{cl});
-
-        var buf: [1024 * 1024]u8 = undefined;
-        const n: usize = respCopy.readAll(&buf) catch |err| {
-            std.log.err("error reading req body {any}", .{err});
-            return;
-        };
-        _ = n;
-
-        // std.debug.print("buf {any}\n", .{buf[0..n]});
-
-        const a = "hello from server";
-        respCopy.transfer_encoding = .{ .content_length = a.len };
-        _ = respCopy.writeAll(a) catch |err| {
-            std.log.err("error writeAll {any}", .{err});
-            return;
-        };
-
-        _ = respCopy.finish() catch |err| {
-            std.log.err("error finish {any}", .{err});
-            return;
-        };
-    }
-
-    pub fn run2(self: *This) !void {
+    pub fn run(self: *This) !void {
         var server = std.http.Server.init(self.allocator, .{ .kernel_backlog = 1024, .reuse_port = true, .reuse_address = true });
         defer server.deinit();
         try server.listen(self.address);
@@ -66,7 +28,7 @@ const Server = struct {
         const threads = try self.allocator.alloc(std.Thread, num_threads);
 
         for (threads) |*t| {
-            t.* = try std.Thread.spawn(.{}, handler2, .{&server});
+            t.* = try std.Thread.spawn(.{}, handler, .{&server});
         }
 
         for (threads) |t| {
@@ -75,21 +37,18 @@ const Server = struct {
         }
     }
 
-    pub fn handler2(server: *std.http.Server) !void {
-        // _ = server;
+    pub fn handler(server: *std.http.Server) !void {
         var gpa = std.heap.GeneralPurposeAllocator(.{}){};
         defer _ = gpa.deinit();
 
         const worker_allocator = gpa.allocator();
         var arena = std.heap.ArenaAllocator.init(worker_allocator);
-        defer arena.deinit();
-
         const allocator = arena.allocator();
+        defer arena.deinit();
 
         while (true) {
             defer _ = arena.reset(.{ .retain_with_limit = 1024 * 1024 });
             var header_buf: [8192]u8 = undefined;
-            // std.debug.print("wait on accept\n", .{});
 
             var res = try server.accept(.{ .allocator = allocator, .header_strategy = .{ .static = &header_buf } });
             defer res.deinit();
@@ -105,7 +64,6 @@ const Server = struct {
 
             const hh = res.headers.getFirstValue("content-type");
             _ = hh;
-            // std.debug.print("headers {any}\n", .{hh});
 
             const a = "hello from server";
             res.transfer_encoding = .{ .content_length = a.len };
@@ -119,28 +77,6 @@ const Server = struct {
                 return;
             };
             _ = res.reset();
-        }
-    }
-    pub fn run(self: *This) !void {
-        var server = std.http.Server.init(self.allocator, .{ .kernel_backlog = 1024, .reuse_port = true, .reuse_address = true });
-        defer server.deinit();
-
-        var thread_pool: std.Thread.Pool = undefined;
-        defer thread_pool.deinit();
-        //std.Thread.getCpuCount()
-        try thread_pool.init(.{ .allocator = self.allocator, .n_jobs = 12 });
-        try server.listen(self.address);
-        // var resp_pool = std.heap.MemoryPool(std.http.Server.Response).init(self.allocator);
-
-        std.debug.print("\nwaiting on connections...\n", .{});
-        while (true) {
-            const r = try self.allocator.create(std.http.Server.Response);
-            r.* = try std.http.Server.accept(&server, .{ .allocator = self.allocator });
-
-            thread_pool.spawn(handle, .{ self, r.* }) catch |err| {
-                std.log.err("error spawning thread {any}", .{err});
-            };
-            self.allocator.destroy(r);
         }
     }
 };
