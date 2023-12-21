@@ -3,9 +3,6 @@ const std = @import("std");
 pub fn main() !void {
     var server_gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const server_allocator = server_gpa.allocator();
-    // _ = server_allocator;
-    const c_alloc = std.heap.c_allocator;
-    _ = c_alloc;
     const address = try std.net.Address.parseIp("0.0.0.0", 4000);
     var s = Server.init(address, server_allocator);
     try s.run(); // this blocks
@@ -23,21 +20,23 @@ const Server = struct {
     pub fn run(self: *This) !void {
         var server = std.http.Server.init(self.allocator, .{ .kernel_backlog = 1024, .reuse_port = true, .reuse_address = true });
         defer server.deinit();
-        try server.listen(self.address);
+
         const num_threads = 12; //try std.Thread.getCpuCount();
         const threads = try self.allocator.alloc(std.Thread, num_threads);
+
+        try server.listen(self.address);
 
         for (threads) |*t| {
             t.* = try std.Thread.spawn(.{}, handler, .{&server});
         }
 
         for (threads) |t| {
-            std.debug.print("joined\n", .{});
             t.join();
         }
     }
 
     pub fn handler(server: *std.http.Server) !void {
+        std.debug.print("thread started...\n", .{});
         var gpa = std.heap.GeneralPurposeAllocator(.{}){};
         defer _ = gpa.deinit();
 
@@ -52,18 +51,24 @@ const Server = struct {
 
             var res = try server.accept(.{ .allocator = allocator, .header_strategy = .{ .static = &header_buf } });
             defer res.deinit();
-            //
+
             _ = res.wait() catch |err| {
                 std.log.err("error in wait {any}", .{err});
                 return;
             };
+
+            var buf: [1024 * 1024]u8 = undefined;
+            const n = res.readAll(&buf) catch |err| {
+                std.log.err("read all err {any}", .{err});
+                return;
+            };
+
+            std.debug.print("HEADER {any}\n", .{res.headers});
+            std.debug.print("REQ {any}\n", .{buf[0..n]});
             _ = res.send() catch |err| {
                 std.log.err("error send {any}", .{err});
                 return;
             };
-
-            const hh = res.headers.getFirstValue("content-type");
-            _ = hh;
 
             const a = "hello from server";
             res.transfer_encoding = .{ .content_length = a.len };
