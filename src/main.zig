@@ -1,11 +1,12 @@
 const std = @import("std");
-
+const router = @import("router.zig");
+const handlers = @import("handler.zig");
 pub fn main() !void {
     var server_gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const server_allocator = server_gpa.allocator();
     const address = try std.net.Address.parseIp("0.0.0.0", 4000);
     var s = Server.init(address, server_allocator);
-    try s.run(); // this blocks
+    try s.run(); // this block  s
 }
 
 const Server = struct {
@@ -51,7 +52,6 @@ const Server = struct {
 
             var res = try server.accept(.{ .allocator = allocator, .header_strategy = .{ .static = &header_buf } });
             defer res.deinit();
-
             _ = res.wait() catch |err| {
                 std.log.err("error in wait {any}", .{err});
                 return;
@@ -62,9 +62,8 @@ const Server = struct {
                 std.log.err("read all err {any}", .{err});
                 return;
             };
+            _ = n;
 
-            std.debug.print("HEADER {any}\n", .{res.headers});
-            std.debug.print("REQ {any}\n", .{buf[0..n]});
             _ = res.send() catch |err| {
                 std.log.err("error send {any}", .{err});
                 return;
