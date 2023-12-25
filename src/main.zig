@@ -1,21 +1,45 @@
 const std = @import("std");
-const router = @import("router.zig");
-const handlers = @import("handler.zig");
+const r = @import("router.zig");
 pub fn main() !void {
     var server_gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const server_allocator = server_gpa.allocator();
     const address = try std.net.Address.parseIp("0.0.0.0", 4000);
-    var s = Server.init(address, server_allocator);
+    const rout = r.Router.init(server_allocator);
+    var s = Server.init(address, server_allocator, rout);
     try s.run(); // this block  s
 }
 
+fn fme(req: *Request) void {
+    std.debug.print("headers: {any}\n", .{req.headers});
+    // const a = "hello from server";
+    var buf: [1024 * 1024]u8 = undefined;
+    const n = req.body.readAll(&buf) catch |err| {
+        std.log.err("read all err {any}", .{err});
+        return;
+    };
+
+    std.debug.print("recv: {s}\n", .{buf[0..n]});
+    //
+    // res.transfer_encoding = .{ .content_length = a.len };
+    // _ = res.writeAll(a) catch |err| {
+    //     std.log.err("error writeAll {any}", .{err});
+    //     return;
+    // };
+    // return;
+}
+const Request = struct {
+    headers: std.http.Headers,
+    body: std.io.AnyReader,
+};
+const Response = struct {};
 const Server = struct {
     const This = @This();
     address: std.net.Address = undefined,
     allocator: std.mem.Allocator = undefined,
+    router: r.Router,
 
-    pub fn init(addr: std.net.Address, alloc: std.mem.Allocator) This {
-        return .{ .address = addr, .allocator = alloc };
+    pub fn init(addr: std.net.Address, alloc: std.mem.Allocator, router: r.Router) This {
+        return .{ .address = addr, .allocator = alloc, .router = router };
     }
 
     pub fn run(self: *This) !void {
@@ -56,30 +80,21 @@ const Server = struct {
                 std.log.err("error in wait {any}", .{err});
                 return;
             };
-
-            var buf: [1024 * 1024]u8 = undefined;
-            const n = res.readAll(&buf) catch |err| {
-                std.log.err("read all err {any}", .{err});
-                return;
-            };
-            _ = n;
+            // res.reader()
 
             _ = res.send() catch |err| {
                 std.log.err("error send {any}", .{err});
                 return;
             };
 
-            const a = "hello from server";
-            res.transfer_encoding = .{ .content_length = a.len };
-            _ = res.writeAll(a) catch |err| {
-                std.log.err("error writeAll {any}", .{err});
-                return;
-            };
+            var re = Request{ .body = res.reader().any(), .headers = res.request.headers };
+            fme(&re);
 
             _ = res.finish() catch |err| {
                 std.log.err("error finish {any}", .{err});
                 return;
             };
+
             _ = res.reset();
         }
     }
