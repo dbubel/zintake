@@ -9,7 +9,7 @@ pub fn main() !void {
     try s.run(); // this block  s
 }
 
-fn fme(req: *Request) void {
+fn handleMe(req: *Request) void {
     std.debug.print("headers: {any}\n", .{req.headers});
     // const a = "hello from server";
     var buf: [1024 * 1024]u8 = undefined;
@@ -31,6 +31,7 @@ const Request = struct {
     headers: std.http.Headers,
     body: std.io.AnyReader,
 };
+
 const Response = struct {};
 const Server = struct {
     const This = @This();
@@ -88,7 +89,7 @@ const Server = struct {
             };
 
             var re = Request{ .body = res.reader().any(), .headers = res.request.headers };
-            fme(&re);
+            handleMe(&re);
 
             _ = res.finish() catch |err| {
                 std.log.err("error finish {any}", .{err});
