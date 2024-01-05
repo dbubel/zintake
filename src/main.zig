@@ -8,29 +8,49 @@ pub fn main() !void {
     var s = Server.init(address, server_allocator, rout);
     try s.run(); // this block  s
 }
-
-fn handleMe(req: *Request) void {
-    std.debug.print("headers: {any}\n", .{req.headers});
-    // const a = "hello from server";
+const person = struct {
+    name: []const u8,
+};
+fn handleMe(conn: *std.http.Server.Response) void {
     var buf: [1024 * 1024]u8 = undefined;
-    const n = req.body.readAll(&buf) catch |err| {
+    const n = conn.reader().readAll(&buf) catch |err| {
         std.log.err("read all err {any}", .{err});
         return;
     };
+    _ = n;
+    const p = person{
+        .name = "dean",
+    };
 
-    std.debug.print("recv: {s}\n", .{buf[0..n]});
-    //
-    // res.transfer_encoding = .{ .content_length = a.len };
-    // _ = res.writeAll(a) catch |err| {
+    var fbuf: [1024]u8 = undefined;
+    var fbs = std.io.fixedBufferStream(&fbuf);
+    _ = std.json.stringify(p, .{}, fbs.writer()) catch |err| {
+        std.log.err("error stringify {any}", .{err});
+        return;
+    };
+
+    conn.transfer_encoding = .{ .content_length = fbs.pos };
+
+    _ = conn.writeAll(fbuf[0..fbs.pos]) catch |err| {
+        std.log.err("error writeAll {any}", .{err});
+        return;
+    };
+    // _ = p;
+    // std.debug.print("recv: {s}\n", .{buf[0..n]}); Vj
+    // _ = std.json.stringify(p, .{}, conn.connection.stream.write(buf[0..n]));
+    // conn.transfer_encoding = .{ .content_length =        };
+    // _ = conn.writeAll(buf[0..n]) catch |err| {
     //     std.log.err("error writeAll {any}", .{err});
     //     return;
     // };
     // return;
 }
-const Request = struct {
-    headers: std.http.Headers,
-    body: std.io.AnyReader,
-};
+
+// const Request = struct {
+//     headers: std.http.Headers,
+//     body: std.io.AnyReader,
+//     writer: std.io.AnyReader,
+// };
 
 const Response = struct {};
 const Server = struct {
@@ -82,14 +102,12 @@ const Server = struct {
                 return;
             };
             // res.reader()
-
             _ = res.send() catch |err| {
                 std.log.err("error send {any}", .{err});
                 return;
             };
 
-            var re = Request{ .body = res.reader().any(), .headers = res.request.headers };
-            handleMe(&re);
+            handleMe(&res);
 
             _ = res.finish() catch |err| {
                 std.log.err("error finish {any}", .{err});
