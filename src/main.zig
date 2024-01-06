@@ -11,6 +11,7 @@ pub fn main() !void {
 const person = struct {
     name: []const u8,
 };
+
 fn handleMe(conn: *std.http.Server.Response) void {
     var buf: [1024 * 1024]u8 = undefined;
     const n = conn.reader().readAll(&buf) catch |err| {
@@ -35,24 +36,8 @@ fn handleMe(conn: *std.http.Server.Response) void {
         std.log.err("error writeAll {any}", .{err});
         return;
     };
-    // _ = p;
-    // std.debug.print("recv: {s}\n", .{buf[0..n]}); Vj
-    // _ = std.json.stringify(p, .{}, conn.connection.stream.write(buf[0..n]));
-    // conn.transfer_encoding = .{ .content_length =        };
-    // _ = conn.writeAll(buf[0..n]) catch |err| {
-    //     std.log.err("error writeAll {any}", .{err});
-    //     return;
-    // };
-    // return;
 }
 
-// const Request = struct {
-//     headers: std.http.Headers,
-//     body: std.io.AnyReader,
-//     writer: std.io.AnyReader,
-// };
-
-const Response = struct {};
 const Server = struct {
     const This = @This();
     address: std.net.Address = undefined,
@@ -97,11 +82,12 @@ const Server = struct {
 
             var res = try server.accept(.{ .allocator = allocator, .header_strategy = .{ .static = &header_buf } });
             defer res.deinit();
+
             _ = res.wait() catch |err| {
                 std.log.err("error in wait {any}", .{err});
                 return;
             };
-            // res.reader()
+
             _ = res.send() catch |err| {
                 std.log.err("error send {any}", .{err});
                 return;
