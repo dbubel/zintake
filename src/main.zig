@@ -38,6 +38,10 @@ fn handleMe(conn: *std.http.Server.Response) void {
     };
 }
 
+pub const Node = struct {
+    value: i32,
+    next: ?*Node,
+};
 const Server = struct {
     const This = @This();
     address: std.net.Address = undefined,
