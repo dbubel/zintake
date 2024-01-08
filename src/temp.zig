@@ -9,5 +9,9 @@ pub const middleware = struct {
         next();
     }
 };
-
-pub fn main() !void {}
+ 
+pub fn main() !void {
+    var a = middleware{
+      .next =  
+    }
+}

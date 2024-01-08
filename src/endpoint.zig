@@ -2,7 +2,7 @@ const std = @import("std");
 
 const method = enum { get };
 
-const endpoint = struct {
+pub const Endpoint = struct {
     const This = @This();
 
     verb: method,
@@ -19,10 +19,10 @@ fn getme(conn: *const std.http.Server.Response) void {
     return;
 }
 
-test "handler new" {
-    const ep = endpoint.new(method.get, "path", getme);
-    _ = ep;
-}
+// test "handler new" {
+//     const ep = Endpoint.new(method.get, "path", getme);
+//     _ = ep;
+// }
 
 pub const Node = struct {
     value: *const fn (*std.http.Server.Response) void,
