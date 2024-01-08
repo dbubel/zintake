@@ -12,6 +12,7 @@ pub const Router = struct {
     }
 
     pub fn addRoute(self: *This, h: endpoint.endpoint) !void {
+        _ = 1;
         try self.routes.put("asdf", h);
         return;
     }
@@ -25,5 +26,6 @@ test "test router" {
     const test_allocator = std.testing.allocator;
     const ep = endpoint.endpoint.new(endpoint.method.get, "/path", getme);
     var r = Router.init(test_allocator);
-    r.addRoute(ep);
+    try r.addRoute(ep);
+    r.routes.deinit();
 }

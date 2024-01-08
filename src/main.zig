@@ -1,5 +1,6 @@
 const std = @import("std");
 const r = @import("router.zig");
+const e = @import("endpoint.zig");
 pub fn main() !void {
     var server_gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const server_allocator = server_gpa.allocator();
@@ -8,6 +9,7 @@ pub fn main() !void {
     var s = Server.init(address, server_allocator, rout);
     try s.run(); // this block  s
 }
+
 const person = struct {
     name: []const u8,
 };
@@ -38,6 +40,16 @@ fn handleMe(conn: *std.http.Server.Response) void {
     };
 }
 
+test "server" {
+    var server_gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const server_allocator = server_gpa.allocator();
+    const address = try std.net.Address.parseIp("0.0.0.0", 4000);
+    const rout = r.Router.init(server_allocator);
+    var s = Server.init(address, server_allocator, rout);
+    s.router.addRoute(e.endpoint.new(e.method.get, "/route", handleMe));
+
+    // var s:Server = Server.init(addr: std.net.Address, alloc: std.mem.Allocator, router: r.Router)
+}
 const Server = struct {
     const This = @This();
     address: std.net.Address = undefined,
@@ -45,7 +57,8 @@ const Server = struct {
     router: r.Router,
 
     pub fn init(addr: std.net.Address, alloc: std.mem.Allocator, router: r.Router) This {
-        return .{ .address = addr, .allocator = alloc, .router = router };
+        const x = router.init(alloc);
+        return .{ .address = addr, .allocator = alloc, .router = x };
     }
 
     pub fn run(self: *This) !void {
