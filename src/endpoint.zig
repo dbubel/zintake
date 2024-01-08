@@ -1,31 +1,26 @@
 const std = @import("std");
 
-pub const handlerFunc = fn (req: *std.http.Server.Request, res: *std.http.Server.Response) void;
+pub const method = enum { get };
 
-const endpoints = []endpoint;
-
-const method = enum { get };
-
-const endpoint = struct {
+pub const endpoint = struct {
     const This = @This();
 
     verb: method,
     path: []const u8,
-    handler: handlerFunc,
 
-    pub fn new(comptime v: method, comptime handlerFn: handlerFunc) This {
-        return .{ .verb = v, .path = "path", .handler = handlerFn };
+    handler: *const fn (*std.http.Server.Response) void,
+
+    pub fn new(v: method, p: []const u8, h: *const fn (*std.http.Server.Response) void) This {
+        return .{ .verb = v, .path = p, .handler = h };
     }
 };
 
-fn getme(req: *std.http.Server.Request, res: *std.http.Server.Response) void {
-    _ = req;
-    _ = res;
+fn getme(_: *std.http.Server.Response) void {
     return;
 }
 
 test "handler new" {
     const handfn = getme;
-    const ep = endpoint.new(method.get, handfn);
+    const ep = endpoint.new(method.get, "hello", handfn);
     _ = ep;
 }

@@ -1,30 +1,29 @@
 const std = @import("std");
-const handlers = @import("endpoint.zig");
+const endpoint = @import("endpoint.zig");
 
 pub const Router = struct {
     const This = @This();
-    routes: std.StringHashMap(*handlers.handlerFunc),
+    routes: std.StringHashMap(endpoint.endpoint),
     allocator: std.mem.Allocator,
 
     pub fn init(alloc: std.mem.Allocator) This {
-        const rs = std.StringHashMap(*handlers.handlerFunc).init(alloc);
+        const rs = std.StringHashMap(endpoint.endpoint).init(alloc);
         return .{ .routes = rs, .allocator = alloc };
     }
 
-    pub fn addRoute(self: *This) void {
-        self.routes.put("asdf", getme);
+    pub fn addRoute(self: *This, h: endpoint.endpoint) !void {
+        try self.routes.put("asdf", h);
         return;
     }
 };
 
-fn getme(req: *std.http.Server.Request, res: *std.http.Server.Response) void {
-    _ = req;
-    _ = res;
+fn getme(_: *std.http.Server.Response) void {
     return;
 }
 
 test "test router" {
     const test_allocator = std.testing.allocator;
-    const r = Router.init(test_allocator);
-    _ = r;
+    const ep = endpoint.endpoint.new(endpoint.method.get, "/path", getme);
+    var r = Router.init(test_allocator);
+    r.addRoute(ep);
 }
