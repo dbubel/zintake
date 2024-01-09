@@ -1,40 +1,33 @@
 const std = @import("std");
-const r = @import("router.zig");
-const e = @import("endpoint.zig");
-pub fn main() !void {
-    var server_gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const server_allocator = server_gpa.allocator();
-    const address = try std.net.Address.parseIp("0.0.0.0", 4000);
-    const rout = r.Router.init(server_allocator);
-    var s = Server.init(address, server_allocator, rout);
-    try s.run(); // this block  s
-}
+pub const r = @import("router.zig");
+pub const e = @import("endpoint.zig");
 
-const person = struct {
+pub const person = struct {
     name: []const u8,
+    street: []const u8,
 };
 
 fn handleMe(conn: *std.http.Server.Response) void {
-    var buf: [1024 * 1024]u8 = undefined;
-    const n = conn.reader().readAll(&buf) catch |err| {
+    var req_body: [1024 * 1024]u8 = undefined;
+    const bytes_read = conn.reader().readAll(&req_body) catch |err| {
         std.log.err("read all err {any}", .{err});
         return;
     };
-    _ = n;
+    _ = bytes_read;
     const p = person{
         .name = "dean",
+        .street = "hawfinch",
     };
 
-    var fbuf: [1024]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&fbuf);
-    _ = std.json.stringify(p, .{}, fbs.writer()) catch |err| {
+    var resp_buffer: [1024]u8 = undefined;
+    var resp_buffer_stream = std.io.fixedBufferStream(&resp_buffer);
+    _ = std.json.stringify(p, .{}, resp_buffer_stream.writer()) catch |err| {
         std.log.err("error stringify {any}", .{err});
         return;
     };
 
-    conn.transfer_encoding = .{ .content_length = fbs.pos };
-
-    _ = conn.writeAll(fbuf[0..fbs.pos]) catch |err| {
+    conn.transfer_encoding = .{ .content_length = resp_buffer_stream.pos };
+    _ = conn.writeAll(resp_buffer[0..resp_buffer_stream.pos]) catch |err| {
         std.log.err("error writeAll {any}", .{err});
         return;
     };
@@ -46,19 +39,18 @@ test "server" {
     const address = try std.net.Address.parseIp("0.0.0.0", 4000);
     const rout = r.Router.init(server_allocator);
     var s = Server.init(address, server_allocator, rout);
-    s.router.addRoute(e.endpoint.new(e.method.get, "/route", handleMe));
+    try s.router.addRoute(e.endpoint.new(e.method.get, "/route", handleMe));
 
     // var s:Server = Server.init(addr: std.net.Address, alloc: std.mem.Allocator, router: r.Router)
 }
-const Server = struct {
+pub const Server = struct {
     const This = @This();
     address: std.net.Address = undefined,
     allocator: std.mem.Allocator = undefined,
     router: r.Router,
 
-    pub fn init(addr: std.net.Address, alloc: std.mem.Allocator, router: r.Router) This {
-        const x = router.init(alloc);
-        return .{ .address = addr, .allocator = alloc, .router = x };
+    pub fn init(addr: std.net.Address, alloc: std.mem.Allocator, ro: r.Router) This {
+        return .{ .address = addr, .allocator = alloc, .router = ro };
     }
 
     pub fn run(self: *This) !void {

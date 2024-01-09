@@ -31,12 +31,17 @@ pub fn build(b: *std.Build) void {
 
     const exe = b.addExecutable(.{
         .name = "zintake",
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = .{ .path = "examples/server.zig" },
         .target = target,
         .optimize = optimize,
         // .link_libc = true,
     });
 
+    const zintake_module = b.addModule("zintake", .{
+        .source_file = .{ .path = "src/zintake.zig" },
+    });
+
+    exe.addModule("zintake", zintake_module);
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
     // step when running `zig build`).
@@ -67,13 +72,13 @@ pub fn build(b: *std.Build) void {
 
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.
-    const lib_unit_tests = b.addTest(.{
+    const unit_tests = b.addTest(.{
         .root_source_file = .{ .path = "src/t.zig" },
         .target = target,
         .optimize = optimize,
     });
 
-    const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
+    const run_unit_tests = b.addRunArtifact(unit_tests);
 
     // const exe_unit_tests = b.addTest(.{
     //     .root_source_file = .{ .path = "src/main.zig" },
@@ -87,6 +92,6 @@ pub fn build(b: *std.Build) void {
     // the `zig build --help` menu, providing a way for the user to request
     // running the unit tests.
     const test_step = b.step("test", "Run unit tests");
-    test_step.dependOn(&run_lib_unit_tests.step);
+    test_step.dependOn(&run_unit_tests.step);
     // t ist_step.dependOn(&run_exe_unit_tests.step);
 }
