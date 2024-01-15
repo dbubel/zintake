@@ -88,6 +88,7 @@ pub const Server = struct {
             var res = try server.accept(.{ .allocator = allocator, .header_strategy = .{ .static = &header_buf } });
             defer res.deinit();
 
+            // std.debug.print("method: {any} path: {any"}", .{});
             _ = res.wait() catch |err| {
                 std.log.err("error in wait {any}", .{err});
                 return;
@@ -98,13 +99,17 @@ pub const Server = struct {
                 return;
             };
 
+            // use the router here
             handleMe(&res);
+
+            // add 404 handler here
 
             _ = res.finish() catch |err| {
                 std.log.err("error finish {any}", .{err});
                 return;
             };
 
+            std.debug.print("method: {any}\n", .{res.request});
             _ = res.reset();
         }
     }

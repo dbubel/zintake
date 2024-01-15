@@ -36,12 +36,10 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         // .link_libc = true,
     });
-
-    const zintake_module = b.addModule("zintake", .{
-        .source_file = .{ .path = "src/zintake.zig" },
+    exe.root_module.addAnonymousImport("zintake", .{
+        .root_source_file = .{ .path = "src/zintake.zig" },
     });
 
-    exe.addModule("zintake", zintake_module);
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
     // step when running `zig build`).
