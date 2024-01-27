@@ -7,7 +7,7 @@ pub const Router = struct {
     allocator: std.mem.Allocator,
 
     pub fn init(alloc: std.mem.Allocator) This {
-        const rs = std.StringHashMap(*const fn (*std.http.Server.Response) void).init(alloc);
+        const rs = std.StringHashMap(endpoint.Endpoint).init(alloc);
         return .{ .routes = rs, .allocator = alloc };
     }
 

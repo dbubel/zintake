@@ -1,13 +1,13 @@
 const std = @import("std");
-const r = @import("router.zig");
-pub fn main() !void {
-    var server_gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const server_allocator = server_gpa.allocator();
-    const address = try std.net.Address.parseIp("0.0.0.0", 4000);
-    const rout = r.Router.init(server_allocator);
-    var s = Server.init(address, server_allocator, rout);
-    try s.run(); // this block  s
-}
+pub const r = @import("router.zig");
+// pub fn main() !void {
+//     var server_gpa = std.heap.GeneralPurposeAllocator(.{}){};
+//     const server_allocator = server_gpa.allocator();
+//     const address = try std.net.Address.parseIp("0.0.0.0", 4000);
+//     const rout = r.Router.init(server_allocator);
+//     var s = Server.init(address, server_allocator, rout);
+//     try s.run(); // this block  s
+// }
 const person = struct {
     name: []const u8,
 };
@@ -38,7 +38,7 @@ fn handleMe(conn: *std.http.Server.Response) void {
     };
 }
 
-const Server = struct {
+pub const Server = struct {
     const This = @This();
     address: std.net.Address = undefined,
     allocator: std.mem.Allocator = undefined,
