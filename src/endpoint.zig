@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const method = enum { get };
+pub const method = enum { get };
 
 pub const Endpoint = struct {
     const This = @This();
@@ -13,16 +13,6 @@ pub const Endpoint = struct {
         return .{ .verb = v, .path = p, .handler = h };
     }
 };
-
-fn getme(conn: *const std.http.Server.Response) void {
-    _ = conn;
-    return;
-}
-
-// test "handler new" {
-//     const ep = Endpoint.new(method.get, "path", getme);
-//     _ = ep;
-// }
 
 pub const Node = struct {
     value: *const fn (*std.http.Server.Response) void,

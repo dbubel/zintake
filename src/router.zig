@@ -11,8 +11,8 @@ pub const Router = struct {
         return .{ .routes = rs, .allocator = alloc };
     }
 
-    pub fn addRoute(self: *This, f: *const fn (*std.http.Server.Response) void) !void {
-        try self.routes.put("asdf", f);
+    pub fn addRoute(self: *This, e: endpoint.Endpoint) !void {
+        try self.routes.put("asdf", e);
         return;
     }
 };
@@ -24,14 +24,7 @@ fn getme(_: *std.http.Server.Response) void {
 test "test router" {
     const test_allocator = std.testing.allocator;
     var r = Router.init(test_allocator);
-    endpoint.Endpoint.new(endpoint.method.get, "hello", getme);
-    try r.addRoute(getme);
+    const ep = endpoint.Endpoint.new(endpoint.method.get, "/hello", getme);
+    try r.addRoute(ep);
     r.routes.deinit();
 }
-// test "test router2" {
-//     const test_allocator = std.testing.allocator;
-//     var r = Router.init(test_allocator);
-//     endpoint.Endpoint.new(endpoint.method.get, "hello", getme);
-//     try r.addRoute(getme);
-//     r.routes.deinit();
-// }
