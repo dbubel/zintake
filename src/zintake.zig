@@ -64,6 +64,11 @@ pub const Server = struct {
 
     pub fn run(self: *This) !void {
         var server = std.http.Server.init(self.allocator, .{ .kernel_backlog = 1024, .reuse_port = true, .reuse_address = true });
+
+        // var iter = self.router.routes.iterator();
+        // while (iter.next()) |route| {
+        //     std.debug.print("route: {s}\n", .{route.key_ptr.*});
+        // }
         defer server.deinit();
 
         const num_threads = 12; //try std.Thread.getCpuCount();
@@ -79,7 +84,7 @@ pub const Server = struct {
             t.join();
         }
     }
-
+    // TODO:(dean) this can be a pure function i think vs a method on this struct
     pub fn connectionHandler(self: *This, server: *std.http.Server) !void {
         std.debug.print("thread started...\n", .{});
         var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -108,18 +113,14 @@ pub const Server = struct {
             };
 
             // std.debug.print("path: {s}\n", .{res.request.target});
-            const rr = self.router.routes.get("hello");
-            std.debug.print("hit? {any}\n", .{rr});
-
-            // var iter = self.router.routes.iterator();
-            // while (iter.next()) |route| {
-            //     std.debug.print("route: {s}\n", .{route.key_ptr.*});
-            // }
+            const rr = self.router.routes.get(res.request.target);
 
             if (rr) |handler| {
+                std.debug.print("calling hander {any} {s} \n", .{ handler.verb, handler.path });
                 handler.handler(&res);
             } else {
                 // not found hander here
+                std.debug.print("no handler found\n", .{});
             }
 
             // handleMe(&res);
