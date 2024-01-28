@@ -1,44 +1,65 @@
 const std = @import("std");
 pub const r = @import("router.zig");
-
+pub const ep = @import("endpoint.zig");
 const person = struct {
     name: []const u8,
+    addr: []const u8,
 };
 
-fn handleMe(conn: *std.http.Server.Response) void {
-    var buf: [1024 * 1024]u8 = undefined;
-    const n = conn.reader().readAll(&buf) catch |err| {
-        std.log.err("read all err {any}", .{err});
-        return;
-    };
-    _ = n;
-    const p = person{
-        .name = "dean",
-    };
-
-    var fbuf: [1024]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&fbuf);
-    _ = std.json.stringify(p, .{}, fbs.writer()) catch |err| {
-        std.log.err("error stringify {any}", .{err});
-        return;
-    };
-
-    conn.transfer_encoding = .{ .content_length = fbs.pos };
-
-    _ = conn.writeAll(fbuf[0..fbs.pos]) catch |err| {
-        std.log.err("error writeAll {any}", .{err});
-        return;
-    };
-}
-
+// fn handleMe(conn: *std.http.Server.Response) void {
+//     var buf: [1024 * 1024]u8 = undefined;
+//     const n = conn.reader().readAll(&buf) catch |err| {
+//         std.log.err("read all err {any}", .{err});
+//         return;
+//     };
+//     _ = n;
+//     const p = person{
+//         .name = "dean",
+//         .addr = "3591 hawfinch",
+//     };
+//
+//     var fbuf: [1024]u8 = undefined;
+//     var fbs = std.io.fixedBufferStream(&fbuf);
+//     _ = std.json.stringify(p, .{}, fbs.writer()) catch |err| {
+//         std.log.err("error stringify {any}", .{err});
+//         return;
+//     };
+//
+//     conn.transfer_encoding = .{ .content_length = fbs.pos };
+//
+//     _ = conn.writeAll(fbuf[0..fbs.pos]) catch |err| {
+//         std.log.err("error writeAll {any}", .{err});
+//         return;
+//     };
+// }
+// pub const Thing = struct {
+//     const This = @This();
+//     x: u32,
+//     y: u32,
+//     pub fn init() This {
+//         return .{ .x = 1, .y = 1 };
+//     }
+//     pub fn add(self: *This, a: u32, b: u32) void {
+//         self.x = a;
+//         self.y = b;
+//     }
+// };
 pub const Server = struct {
     const This = @This();
     address: std.net.Address = undefined,
     allocator: std.mem.Allocator = undefined,
     router: r.Router,
 
+    // pub fn asdf(_: *This, a: u32, b: u32) void {
+    //     std.debug.print("a + b\n", .{a + b});
+    // }
     pub fn init(addr: std.net.Address, alloc: std.mem.Allocator, router: r.Router) This {
+        // TODO:(dean) initialize the router here rahter that pass  a router in
         return .{ .address = addr, .allocator = alloc, .router = router };
+    }
+
+    pub fn addRoute(self: *This, e: ep.Endpoint) !void {
+        try self.router.addRoute(e);
     }
 
     pub fn run(self: *This) !void {
@@ -51,7 +72,7 @@ pub const Server = struct {
         try server.listen(self.address);
 
         for (threads) |*t| {
-            t.* = try std.Thread.spawn(.{}, connectionHandler, .{&server});
+            t.* = try std.Thread.spawn(.{}, connectionHandler, .{ self, &server });
         }
 
         for (threads) |t| {
@@ -59,7 +80,7 @@ pub const Server = struct {
         }
     }
 
-    pub fn connectionHandler(server: *std.http.Server) !void {
+    pub fn connectionHandler(self: *This, server: *std.http.Server) !void {
         std.debug.print("thread started...\n", .{});
         var gpa = std.heap.GeneralPurposeAllocator(.{}){};
         defer _ = gpa.deinit();
@@ -86,7 +107,22 @@ pub const Server = struct {
                 return;
             };
 
-            handleMe(&res);
+            // std.debug.print("path: {s}\n", .{res.request.target});
+            const rr = self.router.routes.get("hello");
+            std.debug.print("hit? {any}\n", .{rr});
+
+            // var iter = self.router.routes.iterator();
+            // while (iter.next()) |route| {
+            //     std.debug.print("route: {s}\n", .{route.key_ptr.*});
+            // }
+
+            if (rr) |handler| {
+                handler.handler(&res);
+            } else {
+                // not found hander here
+            }
+
+            // handleMe(&res);
 
             _ = res.finish() catch |err| {
                 std.log.err("error finish {any}", .{err});

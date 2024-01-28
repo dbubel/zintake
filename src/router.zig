@@ -12,7 +12,7 @@ pub const Router = struct {
     }
 
     pub fn addRoute(self: *This, e: endpoint.Endpoint) !void {
-        try self.routes.put("asdf", e);
+        try self.routes.put(e.path, e);
         return;
     }
 };
