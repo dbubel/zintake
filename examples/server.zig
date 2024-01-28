@@ -7,9 +7,11 @@ pub fn main() !void {
     const address = try std.net.Address.parseIp("0.0.0.0", 4000);
     const rout = z.r.Router.init(server_allocator);
     var s = z.Server.init(address, server_allocator, rout);
-    try s.addRoute(z.ep.Endpoint.new(z.ep.method.get, "/hello", handleMe));
+    const handlerHello = z.ep.Endpoint.new(z.ep.method.get, "/hello", handleMe);
+    try s.addRoute(handlerHello);
     try s.run(); // this block
 }
+
 const person = struct {
     name: []const u8,
     addr: []const u8,
