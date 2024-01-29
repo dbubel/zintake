@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub const method = enum { get };
+pub const method = enum { GET };
 
 pub const Endpoint = struct {
     const This = @This();

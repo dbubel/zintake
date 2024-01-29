@@ -1,14 +1,19 @@
 const std = @import("std");
-const z = @import("zintake");
+const zintake = @import("zintake");
 
 pub fn main() !void {
     var server_gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const server_allocator = server_gpa.allocator();
     const address = try std.net.Address.parseIp("0.0.0.0", 4000);
-    const rout = z.r.Router.init(server_allocator);
-    var s = z.Server.init(address, server_allocator, rout);
-    const handlerHello = z.ep.Endpoint.new(z.ep.method.get, "/hello", handleMe);
-    try s.addRoute(handlerHello);
+    const rout = zintake.r.Router.init(server_allocator);
+
+    var s = zintake.Server.init(address, server_allocator, rout);
+    // want to see something very stupid, change this to const below
+    var endpointGroup = [_]zintake.endpoint.Endpoint{
+        zintake.endpoint.Endpoint.new(zintake.endpoint.method.GET, "/hello", handleMe),
+        zintake.endpoint.Endpoint.new(zintake.endpoint.method.GET, "/api/hello", handleMe),
+    };
+    try s.addRoutes(endpointGroup[0..]);
     try s.run(); // this block
 }
 
@@ -24,14 +29,15 @@ fn handleMe(conn: *std.http.Server.Response) void {
         return;
     };
     _ = n;
-    const p = person{
+    const payload = person{
         .name = "dean",
         .addr = "3591 hawfinch",
     };
 
     var fbuf: [1024]u8 = undefined;
     var fbs = std.io.fixedBufferStream(&fbuf);
-    _ = std.json.stringify(p, .{}, fbs.writer()) catch |err| {
+
+    _ = std.json.stringify(payload, .{}, fbs.writer()) catch |err| {
         std.log.err("error stringify {any}", .{err});
         return;
     };
