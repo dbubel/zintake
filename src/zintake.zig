@@ -12,7 +12,7 @@ pub const Server = struct {
     const dark_red_bg = "\x1b[48;5;52m";
     const This = @This();
     address: std.net.Address = undefined,
-    allocator: std.mem.Allocator = undefined,
+    allocator: std.mem.Allocator = undefined, // TODO:(dean) might not need to have allocator here
     router: r.Router,
 
     pub fn init(addr: std.net.Address, alloc: std.mem.Allocator, router: r.Router) This {
@@ -31,7 +31,7 @@ pub const Server = struct {
     }
 
     pub fn run(self: *This) !void {
-        var server = std.http.Server.init(self.allocator, .{ .kernel_backlog = 1024, .reuse_port = true, .reuse_address = true });
+        var server = std.http.Server.init(.{ .kernel_backlog = 1024, .reuse_port = true, .reuse_address = true });
 
         defer server.deinit();
 
@@ -82,7 +82,7 @@ pub fn handlerThread(router: *r.Router, server: *std.http.Server) !void {
         const rr = router.routes.get(res.request.target);
 
         if (rr) |handler| {
-            std.debug.print("calling hander {any} {s} \n", .{ handler.verb, handler.path });
+            // std.debug.print("calling hander {any} {s} \n", .{ handler.verb, handler.path });
             handler.handler(&res);
         } else {
             // not found hander here

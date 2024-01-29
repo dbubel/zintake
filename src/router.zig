@@ -24,7 +24,7 @@ fn getme(_: *std.http.Server.Response) void {
 test "test router" {
     const test_allocator = std.testing.allocator;
     var r = Router.init(test_allocator);
-    const ep = endpoint.Endpoint.new(endpoint.method.get, "/hello", getme);
+    const ep = endpoint.Endpoint.new(endpoint.method.GET, "/hello", getme);
     try r.addRoute(ep);
     r.routes.deinit();
 }
