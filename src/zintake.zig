@@ -52,6 +52,7 @@ pub const Server = struct {
 
 // This runs in its own thread handing connections
 pub fn handlerThread(router: *r.Router, server: *std.http.Server) !void {
+    // _ = router;
     std.debug.print("thread started...\n", .{});
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -68,34 +69,68 @@ pub fn handlerThread(router: *r.Router, server: *std.http.Server) !void {
         var res = try server.accept(.{ .allocator = allocator, .header_strategy = .{ .static = &header_buf } });
         defer res.deinit();
 
-        _ = res.wait() catch |err| {
-            std.log.err("error in wait {any}", .{err});
-            return;
-        };
+        // this code came strait from the std lib example
+        while (res.reset() != .closing) {
+            res.wait() catch |err| switch (err) {
+                error.HttpHeadersInvalid => break,
+                error.HttpHeadersExceededSizeLimit => {
+                    res.status = .request_header_fields_too_large;
+                    res.send() catch break;
+                    break;
+                },
+                else => {
+                    res.status = .bad_request;
+                    res.send() catch break;
+                    break;
+                },
+            };
 
-        _ = res.send() catch |err| {
-            std.log.err("error send {any}", .{err});
-            return;
-        };
+            const endpointHandler = router.routes.get(res.request.target);
 
-        // std.debug.print("path: {s}\n", .{res.request.target});
-        const rr = router.routes.get(res.request.target);
-
-        if (rr) |handler| {
-            // std.debug.print("calling hander {any} {s} \n", .{ handler.verb, handler.path });
-            handler.handler(&res);
-        } else {
-            // not found hander here
-            std.debug.print("no handler found\n", .{});
+            if (endpointHandler) |h| {
+                h.handler(&res);
+            } else {
+                // not found hander here
+                std.debug.print("no handler found\n", .{});
+            }
         }
-
-        // handleMe(&res);
-
-        _ = res.finish() catch |err| {
-            std.log.err("error finish {any}", .{err});
-            return;
-        };
-
-        _ = res.reset();
     }
+
+    // while (true) {
+    //     defer _ = arena.reset(.{ .retain_with_limit = 1024 * 1024 });
+    //     var header_buf: [8192]u8 = undefined;
+    //
+    //     var res = try server.accept(.{ .allocator = allocator, .header_strategy = .{ .static = &header_buf } });
+    //     defer res.deinit();
+    //
+    //     _ = res.wait() catch |err| {
+    //         std.log.err("error in wait {any}", .{err});
+    //         return;
+    //     };
+    //
+    //     _ = res.send() catch |err| {
+    //         std.log.err("error send {any}", .{err});
+    //         return;
+    //     };
+    //
+    //     // std.debug.print("path: {s}\n", .{res.request.target});
+    //     const rr = router.routes.get(res.request.target);
+    //
+    //     if (rr) |handler| {
+    //         // std.debug.print("calling hander {any} {s} \n", .{ handler.verb, handler.path });
+    //         handler.handler(&res);
+    //     } else {
+    //         // not found hander here
+    //         std.debug.print("no handler found\n", .{});
+    //     }
+    //
+    //     // handleMe(&res);
+    //
+    //     _ = res.finish() catch |err| {
+    //         std.log.err("error finish {any}", .{err});
+    //         return;
+    //     };
+    //
+    //     _ = res.reset();
+    // }
 }

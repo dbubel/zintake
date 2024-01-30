@@ -22,30 +22,48 @@ const person = struct {
     addr: []const u8,
 };
 
+const payload: person = person{
+    .name = "dean",
+    .addr = "3591 hawfinch",
+};
+
 fn handleMe(conn: *std.http.Server.Response) void {
+    // read the request made
     var buf: [1024 * 1024]u8 = undefined;
-    const n = conn.reader().readAll(&buf) catch |err| {
+    const n: usize = conn.reader().readAll(&buf) catch |err| {
         std.log.err("read all err {any}", .{err});
         return;
     };
-    _ = n;
-    const payload = person{
-        .name = "dean",
-        .addr = "3591 hawfinch",
-    };
 
+    _ = n; // length of the request
+
+    // make a buffer and then wrap it in a stream so we can we can print out json
+    // response into it
     var fbuf: [1024]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&fbuf);
+    var fbs: std.io.FixedBufferStream([]u8) = std.io.fixedBufferStream(&fbuf);
 
-    _ = std.json.stringify(payload, .{}, fbs.writer()) catch |err| {
+    std.json.stringify(payload, .{}, fbs.writer()) catch |err| {
         std.log.err("error stringify {any}", .{err});
         return;
     };
 
+    conn.status = .ok;
     conn.transfer_encoding = .{ .content_length = fbs.pos };
 
-    _ = conn.writeAll(fbuf[0..fbs.pos]) catch |err| {
+    conn.send() catch |err| {
+        std.log.err("error send {any}", .{err});
+        return;
+    };
+
+    conn.writeAll(fbuf[0..fbs.pos]) catch |err| {
         std.log.err("error writeAll {any}", .{err});
         return;
     };
+    conn.finish() catch |err| {
+        std.log.err("error finish{any}", .{err});
+    };
+    // conn.transfer_encoding = .chunked;
+    // try res.send();
+    // try res.writeAll("Hello, World!\n");
+    // try res.finish();
 }
