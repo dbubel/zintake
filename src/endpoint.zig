@@ -1,15 +1,13 @@
 const std = @import("std");
 
-pub const method = enum { GET };
-
 pub const Endpoint = struct {
     const This = @This();
 
-    verb: method,
+    verb: std.http.Method,
     path: []const u8,
     handler: *const fn (*std.http.Server.Response) void,
     // middleware: linked_list,
-    pub fn new(v: method, p: []const u8, h: *const fn (*std.http.Server.Response) void) This {
+    pub fn new(v: std.http.Method, p: []const u8, h: *const fn (*std.http.Server.Response) void) This {
         return .{ .verb = v, .path = p, .handler = h };
     }
 };
@@ -18,6 +16,7 @@ pub const Node = struct {
     value: *const fn (*std.http.Server.Response) void,
     next: ?*Node,
 };
+
 pub const linked_list = struct {
     allocator: *std.mem.Allocator,
     head: ?*Node,

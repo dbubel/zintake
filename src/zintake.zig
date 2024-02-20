@@ -16,7 +16,7 @@ pub const Server = struct {
     router: r.Router,
 
     pub fn init(addr: std.net.Address, alloc: std.mem.Allocator, router: r.Router) This {
-        // TODO:(dean) initialize the router here rahter that pass  a router in
+        // TODO:(dean) initialize the router here rahter that pass a router in
         return .{ .address = addr, .allocator = alloc, .router = router };
     }
 
@@ -48,6 +48,15 @@ pub const Server = struct {
             t.join();
         }
     }
+};
+
+const ZinRequest = struct {
+    headers: std.StringHashMap([]const u8),
+};
+
+const ZinResponse = struct {
+    headers: std.StringHashMap([]const u8),
+    status: std.http.Status,
 };
 
 // This runs in its own thread handing connections
@@ -95,42 +104,4 @@ pub fn handlerThread(router: *r.Router, server: *std.http.Server) !void {
             }
         }
     }
-
-    // while (true) {
-    //     defer _ = arena.reset(.{ .retain_with_limit = 1024 * 1024 });
-    //     var header_buf: [8192]u8 = undefined;
-    //
-    //     var res = try server.accept(.{ .allocator = allocator, .header_strategy = .{ .static = &header_buf } });
-    //     defer res.deinit();
-    //
-    //     _ = res.wait() catch |err| {
-    //         std.log.err("error in wait {any}", .{err});
-    //         return;
-    //     };
-    //
-    //     _ = res.send() catch |err| {
-    //         std.log.err("error send {any}", .{err});
-    //         return;
-    //     };
-    //
-    //     // std.debug.print("path: {s}\n", .{res.request.target});
-    //     const rr = router.routes.get(res.request.target);
-    //
-    //     if (rr) |handler| {
-    //         // std.debug.print("calling hander {any} {s} \n", .{ handler.verb, handler.path });
-    //         handler.handler(&res);
-    //     } else {
-    //         // not found hander here
-    //         std.debug.print("no handler found\n", .{});
-    //     }
-    //
-    //     // handleMe(&res);
-    //
-    //     _ = res.finish() catch |err| {
-    //         std.log.err("error finish {any}", .{err});
-    //         return;
-    //     };
-    //
-    //     _ = res.reset();
-    // }
 }
