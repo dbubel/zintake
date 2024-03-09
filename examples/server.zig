@@ -10,7 +10,7 @@ pub fn main() !void {
     const rout = zintake.r.Router.init(server_allocator);
 
     var s = zintake.Server.init(address, server_allocator, rout);
-    // want to see something very stupid, change this to const below
+    // want to see something very stupid, change this to const below instead of var
     var endpointGroup = [_]Endpoint{
         Endpoint.new(methods.GET, "/hello", handleMe),
         Endpoint.new(methods.GET, "/api/hello", handleMe),
@@ -26,42 +26,19 @@ const person = struct {
 
 const payload: person = person{
     .name = "dean",
-    .addr = "3591 hawfinch",
+    .addr = "3234 mars",
 };
 
 var handleAlloc = std.heap.GeneralPurposeAllocator(.{}){};
 const handleAl = handleAlloc.allocator();
-const worker_allocator = handleAl.allocator();
-const allocator = arena.allocator();
+// const worker_allocator = handleAl.allocator();
+// const allocator = arena.allocator();
 
-var arena = std.heap.ArenaAllocator.init(worker_allocator);
+// var arena = std.heap.ArenaAllocator.init(worker_allocator);
 
-fn respondJSON(conn: *std.http.Server.Response, responseCode: std.http.Status, data: anytype) void {
-    // make a buffer and then wrap it in a stream so we can we can print out json
-    // response into it
-    var fbuf: [1024]u8 = undefined;
-    var fbs: std.io.FixedBufferStream([]u8) = std.io.fixedBufferStream(&fbuf);
-
-    std.json.stringify(data, .{}, fbs.writer()) catch |err| {
-        std.log.err("error stringify {any}", .{err});
-        return;
-    };
-    conn.status = responseCode;
-    conn.transfer_encoding = .{ .content_length = fbs.pos };
-
-    conn.send() catch |erra| {
-        std.log.err("error send {any}", .{erra});
-    };
-    conn.writeAll(fbuf[0..fbs.pos]) catch |err| {
-        std.log.err("error writeAll {any}", .{err});
-        return;
-    };
-}
-
+// _ = router;
+// _ = router;
 fn handleMe(conn: *std.http.Server.Response) void {
-    defer conn.finish() catch |err| {
-        std.log.err("error finish{any}", .{err});
-    };
 
     // read the request made
     var buf: [1024 * 1024]u8 = undefined;
@@ -82,6 +59,10 @@ fn handleMe(conn: *std.http.Server.Response) void {
         return;
     };
     defer p.deinit();
-    std.debug.print("P: {any}\n", .{p.value});
-    respondJSON(conn, .ok, p.value);
+
+    zintake.RespondJSON(conn, .ok, p.value);
+    conn.finish() catch |err| {
+        std.log.err("error finish{any}", .{err});
+        return;
+    };
 }

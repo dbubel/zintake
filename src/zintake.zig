@@ -52,6 +52,27 @@ pub const Server = struct {
     }
 };
 
+pub fn RespondJSON(conn: *std.http.Server.Response, responseCode: std.http.Status, data: anytype) void {
+    // make a buffer and then wrap it in a stream so we can we can print out json
+    // response into it
+    var fbuf: [1024]u8 = undefined;
+    var fbs: std.io.FixedBufferStream([]u8) = std.io.fixedBufferStream(&fbuf);
+
+    std.json.stringify(data, .{}, fbs.writer()) catch |err| {
+        std.log.err("error stringify {any}", .{err});
+        return;
+    };
+    conn.status = responseCode;
+    conn.transfer_encoding = .{ .content_length = fbs.pos };
+
+    conn.send() catch |erra| {
+        std.log.err("error send {any}", .{erra});
+    };
+    conn.writeAll(fbuf[0..fbs.pos]) catch |err| {
+        std.log.err("error writeAll {any}", .{err});
+        return;
+    };
+}
 // const ZinRequest = struct {
 //     headers: std.StringHashMap([]const u8),
 // };
