@@ -1,4 +1,5 @@
 const std = @import("std");
+const http = @import("std").http;
 const endpoint = @import("endpoint.zig");
 
 pub const Router = struct {
@@ -24,7 +25,7 @@ fn getme(_: *std.http.Server.Response) void {
 test "test router" {
     const test_allocator = std.testing.allocator;
     var r = Router.init(test_allocator);
-    const ep = endpoint.Endpoint.new(endpoint.method.GET, "/hello", getme);
+    const ep = endpoint.Endpoint.new(http.Method.GET, "/hello", getme);
     try r.addRoute(ep);
     r.routes.deinit();
 }

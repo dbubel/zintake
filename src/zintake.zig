@@ -10,6 +10,7 @@ pub const Server = struct {
     const red_bg = "\x1b[41m";
     const green_bg = "\x1b[42m";
     const dark_red_bg = "\x1b[48;5;52m";
+
     const This = @This();
     address: std.net.Address = undefined,
     allocator: std.mem.Allocator = undefined, // TODO:(dean) might not need to have allocator here
@@ -24,6 +25,7 @@ pub const Server = struct {
         log.info("added route {s}{any}{s} {s}", .{ green_bg, e.verb, reset, e.path });
         try self.router.addRoute(e);
     }
+
     pub fn addRoutes(self: *This, endpoints: []endpoint.Endpoint) !void {
         for (endpoints) |e| {
             try self.addRoute(e);
@@ -50,26 +52,25 @@ pub const Server = struct {
     }
 };
 
-const ZinRequest = struct {
-    headers: std.StringHashMap([]const u8),
-};
-
-const ZinResponse = struct {
-    headers: std.StringHashMap([]const u8),
-    status: std.http.Status,
-};
+// const ZinRequest = struct {
+//     headers: std.StringHashMap([]const u8),
+// };
+//
+// const ZinResponse = struct {
+//     headers: std.StringHashMap([]const u8),
+//     status: std.http.Status,
+// };
 
 // This runs in its own thread handing connections
 pub fn handlerThread(router: *r.Router, server: *std.http.Server) !void {
-    // _ = router;
     std.debug.print("thread started...\n", .{});
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
 
-    const worker_allocator = gpa.allocator();
-    var arena = std.heap.ArenaAllocator.init(worker_allocator);
-    const allocator = arena.allocator();
+    // const worker_allocator = gpa.allocator();
+    var arena = std.heap.ArenaAllocator.init(gpa.allocator());
     defer arena.deinit();
+    const allocator = arena.allocator();
 
     while (true) {
         defer _ = arena.reset(.{ .retain_with_limit = 1024 * 1024 });

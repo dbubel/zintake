@@ -1,5 +1,6 @@
 const std = @import("std");
 const zintake = @import("zintake");
+const Endpoint = @import("zintake").endpoint.Endpoint;
 const methods = std.http.Method;
 
 pub fn main() !void {
@@ -10,12 +11,12 @@ pub fn main() !void {
 
     var s = zintake.Server.init(address, server_allocator, rout);
     // want to see something very stupid, change this to const below
-    var endpointGroup = [_]zintake.endpoint.Endpoint{
-        zintake.endpoint.Endpoint.new(methods.GET, "/hello", handleMe),
-        zintake.endpoint.Endpoint.new(methods.GET, "/api/hello", handleMe),
+    var endpointGroup = [_]Endpoint{
+        Endpoint.new(methods.GET, "/hello", handleMe),
+        Endpoint.new(methods.GET, "/api/hello", handleMe),
     };
     try s.addRoutes(endpointGroup[0..]);
-    try s.run(); // this block
+    try s.run(); // this blocks
 }
 
 const person = struct {
@@ -31,9 +32,31 @@ const payload: person = person{
 var handleAlloc = std.heap.GeneralPurposeAllocator(.{}){};
 const handleAl = handleAlloc.allocator();
 const worker_allocator = handleAl.allocator();
-var arena = std.heap.ArenaAllocator.init(worker_allocator);
 const allocator = arena.allocator();
-// defer arena.deinit();
+
+var arena = std.heap.ArenaAllocator.init(worker_allocator);
+
+fn respondJSON(conn: *std.http.Server.Response, responseCode: std.http.Status, data: anytype) void {
+    // make a buffer and then wrap it in a stream so we can we can print out json
+    // response into it
+    var fbuf: [1024]u8 = undefined;
+    var fbs: std.io.FixedBufferStream([]u8) = std.io.fixedBufferStream(&fbuf);
+
+    std.json.stringify(data, .{}, fbs.writer()) catch |err| {
+        std.log.err("error stringify {any}", .{err});
+        return;
+    };
+    conn.status = responseCode;
+    conn.transfer_encoding = .{ .content_length = fbs.pos };
+
+    conn.send() catch |erra| {
+        std.log.err("error send {any}", .{erra});
+    };
+    conn.writeAll(fbuf[0..fbs.pos]) catch |err| {
+        std.log.err("error writeAll {any}", .{err});
+        return;
+    };
+}
 
 fn handleMe(conn: *std.http.Server.Response) void {
     defer conn.finish() catch |err| {
@@ -60,29 +83,5 @@ fn handleMe(conn: *std.http.Server.Response) void {
     };
     defer p.deinit();
     std.debug.print("P: {any}\n", .{p.value});
-
-    // make a buffer and then wrap it in a stream so we can we can print out json
-    // response into it
-    var fbuf: [1024]u8 = undefined;
-    var fbs: std.io.FixedBufferStream([]u8) = std.io.fixedBufferStream(&fbuf);
-
-    std.json.stringify(p.value, .{}, fbs.writer()) catch |err| {
-        std.log.err("error stringify {any}", .{err});
-        return;
-    };
-
-    conn.status = .ok;
-    conn.transfer_encoding = .{ .content_length = fbs.pos };
-
-    conn.send() catch |erra| {
-        std.log.err("error send {any}", .{erra});
-    };
-    conn.writeAll(fbuf[0..fbs.pos]) catch |err| {
-        std.log.err("error writeAll {any}", .{err});
-        return;
-    };
-    // conn.transfer_encoding = .chunked;
-    // try res.send();
-    // try res.writeAll("Hello, World!\n");
-    // try res.finish();
+    respondJSON(conn, .ok, p.value);
 }
